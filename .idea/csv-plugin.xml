@@ -24,6 +24,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/logging_config.py">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/main.py">
           <value>
             <Attribute>

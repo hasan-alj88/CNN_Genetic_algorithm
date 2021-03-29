@@ -5,13 +5,16 @@ from keras import layers
 import numpy as np
 import typing
 
+from logging_config import log_decorator
+
 
 def load__data():
     return tf.keras.datasets.cifar10.load_data()
 
 
+@log_decorator
 class CNN:
-    """:cvar
+    """
     Creating and Train CNN neural network with defined hyper-parameters
     """
 
@@ -62,6 +65,24 @@ class CNN:
                                       verbose=verbose)
         self.Training_time = (datetime.datetime.now() - start_time).total_seconds() * 1000
 
+    def __repr__(self):
+        out_str = '-----------------------\nHyper-parameters:-\n'
+        for hp, hp_val in self.hyper_parameters.items():
+            out_str += f'{hp} : \t{hp_val}\n'
+        out_str += 'Performance:-\n'
+        acc_test, acc_train = self.accuracy
+        out_str += f'Test  accuracy :\t{acc_test * 100:f00.0000}%\n'
+        out_str += f'Train accuracy :\t{acc_train * 100:f00.0000}%\n'
+        out_str += f'Train Time     :\t{self.Training_time} ms\n'
+        out_str += '-----------------------'
+        return out_str
+
+    @property
+    def accuracy(self):
+        _, acc_train = self.model.evaluate(x=self.x_train, y=self.y_train)
+        _, acc_test = self.model.evaluate(x=self.x_test, y=self.y_test)
+        return acc_test, acc_train
+
     @property
     def input_shape(self):
         """
@@ -93,6 +114,7 @@ class CNN:
         return hp_dict
 
     # Model Changes
+    @log_decorator
     def change_epoch(self, change):
         """
         Increase or decrease the number of epochs
@@ -105,6 +127,7 @@ class CNN:
         hp = self.add_change_log(hp, f'Epochs increased by {change}')
         return hp
 
+    @log_decorator
     def change_batch_size(self, change):
         """
         Increase or decrease the batch size
@@ -117,6 +140,7 @@ class CNN:
         hp = self.add_change_log(hp, f'Batch size increased by {change}')
         return hp
 
+    @log_decorator
     def change_ann_layer_size(self, change):
         """
         Increase or decrease a randomly selected fully connected layer size

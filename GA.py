@@ -1,9 +1,8 @@
-from CNN import CNN
+from CNN import CNN, create_random_hyper_parameter
 import logging
 import numpy as np
 
 from logging_config import log_decorator, logger
-
 
 @log_decorator
 class AnyDice:
@@ -32,6 +31,14 @@ class CNN_GA():
     def __init__(self, population_size):
         self.population_size = population_size
         self.current_generation = 0
+        logger.debug('Creating the initial models (generation #0)')
+        self.population = []
+        gen0_population = []
+
+        for _ in range(population_size):
+            modelg0 = create_random_hyper_parameter()
+
+
         self.generate_models()
 
     def populate_model_generation(self):

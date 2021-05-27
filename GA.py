@@ -1,32 +1,16 @@
-from CNN import CNN, create_random_hyper_parameter
+import pprint
+
+from CNN import CNN, create_random_hyper_parameter, generate_random_convolution_parameters
 import logging
 import numpy as np
-
+import pprint as pp
 from logging_config import log_decorator, logger
 
-@log_decorator
-class AnyDice:
-    def __init__(self, probabilities):
-        if not np.isclose(np.sum([0, probabilities]), 1.0):
-            raise ValueError('sum of probabilities must equal 1.0')
-        probabilities.insert(0, 0)
-        self.boundaries = probabilities.ufunc.accumulate()
-
-    @log_decorator
-    @property
-    def roll(self) -> int:
-        the_roll = np.random.random()
-        for interval, (lower, upper) in enumerate(zip(self.boundaries[:-1], self.boundaries[1:])):
-            if lower <= the_roll <= upper:
-                return interval
-        else:
-            return len(self.boundaries) - 1
 
 
 
 
-
-@log_decorator
+# @log_decorator
 class CNN_GA():
     def __init__(self, population_size):
         self.population_size = population_size
@@ -36,10 +20,14 @@ class CNN_GA():
         gen0_population = []
 
         for _ in range(population_size):
-            modelg0 = create_random_hyper_parameter()
+            modelg0hp = create_random_hyper_parameter()
+            modelg0hp['name'] = f'model_gen0_{_}'
+            logger.debug(f'New Hyper-parameter created:-\n{pp.pformat(modelg0hp)}')
+            logger.debug('Creating and train the model.')
+            modelg0 = CNN(modelg0hp, 1)
+            gen0_population.append(modelg0)
 
-
-        self.generate_models()
+        print('Done')
 
     def populate_model_generation(self):
         logger.info('============================================\n' +
@@ -58,3 +46,10 @@ class CNN_GA():
     @staticmethod
     def strategy_selection(cnn_model) -> str:
         pass
+
+#pprint.pformat(indent=4)
+hp = create_random_hyper_parameter()
+hp['name'] = 'exampleHP'
+pprint.pp(hp)
+C = CNN(hp, verbose=1)
+pprint.pp(C)

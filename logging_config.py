@@ -3,9 +3,10 @@ import logging
 import sys
 import time
 from logging.handlers import RotatingFileHandler
+import os
 
 default_timer = time.clock if (sys.platform == "win32") else time.time
-
+log_file_dir = os.path.join(os.getcwd(), 'logs')
 
 def create_logger():
     log = logging.getLogger(__name__)
@@ -15,7 +16,9 @@ def create_logger():
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.DEBUG)
     # log file handler
-    file_handler = RotatingFileHandler("logs\\CNN_models_log.log", maxBytes=2 ** 20, backupCount=100)
+    file_handler = RotatingFileHandler(os.path.join(log_file_dir, "CNN_models_log.log"),
+                                       maxBytes=2 ** 20,
+                                       backupCount=100)
     file_handler.setLevel(logging.DEBUG)
     # create formatter
     log_format = logging.Formatter('%(levelname)s\t||%(asctime)s\n%(message)s')

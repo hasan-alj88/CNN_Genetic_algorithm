@@ -221,9 +221,14 @@ class CNN:
 
     @property
     def accuracy(self):
-        _, acc_train = self.model.evaluate(self.ds_train)
-        _, acc_test = self.model.evaluate(self.ds_test)
+        _, acc_train = self.model.evaluate(self.ds_train, verbose=0)
+        _, acc_test = self.model.evaluate(self.ds_test, verbose=0)
         return acc_test, acc_train
+
+    @property
+    def is_over_fitted(self) -> bool:
+        acc_test, acc_train = self.accuracy
+        return acc_train >= 0.975 > acc_test and np.abs(acc_train - acc_test) >= 0.1
 
     @property
     def trainable_parameters_count(self):

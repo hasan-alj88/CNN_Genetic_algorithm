@@ -48,7 +48,7 @@ class CNN_GA():
             model_name = model['name']
             logger.info(f'Training model {model_name}.')
             try:
-                model_runs = [CNN(model) for _ in range(self.model_reruns)]
+                model_runs = [CNN(model, verbose=1) for _ in range(self.model_reruns)]
             except Exception as error:
                 logger.error(error)
                 # revert Changes
@@ -56,7 +56,7 @@ class CNN_GA():
                 model = self.models[prev_model]
                 model = CNN.add_change_log(model, f'Reverted to model {prev_model} due to an exception on training.')
                 model_name = model['name']
-                model_runs = [CNN(model) for _ in range(self.model_reruns)]
+                model_runs = [CNN(model, verbose=1) for _ in range(self.model_reruns)]
 
             logger.info(f'Training model {model_name} completed')
             self.metrics.loc[model_name, 'test_Accuracy'] = np.min([cnn.accuracy[0] for cnn in model_runs])
@@ -112,3 +112,7 @@ class CNN_GA():
         return [self.models[name] for name in elite_model_name]
 
 
+ga = CNN_GA(population_size=10,
+            model_reruns=3,
+            number_of_models_tobe_changed_based_on_training_time=3)
+print(ga.metrics)

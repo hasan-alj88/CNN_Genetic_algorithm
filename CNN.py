@@ -450,7 +450,7 @@ class CNN:
     @staticmethod
     def change_name_to(hp: Dict, new_name: str) -> Dict:
         old_name = hp.get('name', 'new')
-        hp['prev_model'], old_name = old_name, new_name
+        hp['prev_model'], hp['name'] = old_name, new_name
         return hp
 
     @staticmethod

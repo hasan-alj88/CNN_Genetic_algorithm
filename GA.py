@@ -1,15 +1,21 @@
 import pprint
 
-from CNN import CNN, create_random_hyper_parameter, generate_random_convolution_parameters
+from CNN import CNN, create_random_hyper_parameter, generate_random_convolution_parameters, load_data
 import logging
 import numpy as np
 import pandas as pd
 import pprint as pp
+from typing import Dict, List
 from logging_config import log_decorator, logger
 
 
 class CNN_GA():
-    def __init__(self, population_size:int=10, model_reruns:int= 3):
+    def __init__(self,
+                 population_size: int = 10,
+                 model_reruns: int = 3,
+                 number_of_models_tobe_changed_based_on_training_time: int = 3):
+        _, __, self.input_shape, self.output_size = load_data(1)
+        self.number_of_models_tobe_changed_based_on_training_time = number_of_models_tobe_changed_based_on_training_time
         self.number_of_models_per_generation = population_size
         self.model_reruns = model_reruns
         self.current_generation = 0
@@ -19,14 +25,13 @@ class CNN_GA():
         self.models = dict()
         self.current_generation_models = []
 
-        for _ in range(population_size):
+        for _ in range(self.number_of_models_per_generation):
             modelg0hp = create_random_hyper_parameter()
-            modelg0hp['name'] = f'model_gen0_{_}'
+            modelg0hp = CNN.change_name_to(modelg0hp, f'model_gen0_{_}')
             modelg0hp['prev_model'] = 'new'
             self.current_generation_models.append(modelg0hp)
             logger.debug(f'New Hyper-parameter created:-\n{pp.pformat(modelg0hp)}')
-        logger.debug('Creating and train the model.')
-
+        self.train_current_generation()
         print('Done')
 
     def __len__(self):
@@ -42,31 +47,68 @@ class CNN_GA():
         for model in self.current_generation_models:
             model_name = model['name']
             logger.info(f'Training model {model_name}.')
-            model_runs = [CNN(model) for _ in range(self.model_reruns)]
+            try:
+                model_runs = [CNN(model) for _ in range(self.model_reruns)]
+            except Exception as error:
+                logger.error(error)
+                # revert Changes
+                prev_model = model['prev_model']
+                model = self.models[prev_model]
+                model = CNN.add_change_log(model, f'Reverted to model {prev_model} due to an exception on training.')
+                model_name = model['name']
+                model_runs = [CNN(model) for _ in range(self.model_reruns)]
+
             logger.info(f'Training model {model_name} completed')
             self.metrics.loc[model_name, 'test_Accuracy'] = np.min([cnn.accuracy[0] for cnn in model_runs])
             self.metrics.loc[model_name, 'train_Accuracy'] = np.min([cnn.accuracy[1] for cnn in model_runs])
             self.metrics.loc[model_name, 'training_time'] = np.max([cnn.Training_time for cnn in model_runs])
             self.metrics.loc[model_name, 'prev_model'] = model['prev_model']
             self.metrics.loc[model_name, 'generation'] = self.current_generation
-            logger.info(f'Performance results for {model_name}:-\n{self.metrics.loc[model_name,:]}')
+            logger.info(f'Performance results for {model_name}:-\n{self.metrics.loc[model_name, :]}')
         logger.info(f'Generation {self.current_generation} Training completed.\n------------------\n')
 
     def next_generation_models(self):
+        self.current_generation += 1
         logger.info('============================================\n' +
                     f'Generation {self.current_generation}' +
                     '============================================\n')
+        # Elite Selection
+        elite = self.elite_model(self.current_generation - 1)
+        elite = CNN.change_name_to(elite, f'Best_model_of_gen{self.current_generation - 1}')
+        next_gen_models = [elite]
 
-        pass
+        # slowest Training Time changes
+        n = self.number_of_models_tobe_changed_based_on_training_time
+        slow_models = self.top_n_slowest_models(self.current_generation - 1, n)
+        for _, slow_model in enumerate(slow_models):
+            new_model = CNN.change_for_slow_training_time(slow_model)
+            new_model = CNN.change_name_to(new_model, f'model_gen{self.current_generation}_{_}')
+            next_gen_models.append(new_model)
 
-    def store_generation_models(self):
-        for model in self.current_generation_models:
-            self.models[model['name']] = model
+        # Fix Under-fitting for the rest
+        prev_gen_model_names = set([model['name'] for model in self.current_generation_models])
+        elite_set = set(elite['name'])
+        slow_models_names = set([model['name'] for model in slow_models])
+        under_fitted_models = list(prev_gen_model_names - elite_set - slow_models_names)
+        for _, prev_gen_model in enumerate(under_fitted_models):
+            new_model = CNN.change_for_under_fitting(prev_gen_model, self.input_shape, self.output_size)
+            new_model = CNN.change_name_to(new_model, f'model_gen{self.current_generation}_{_}')
+            next_gen_models.append(new_model)
 
-    @property
-    def elite_model(self):
-        pass
+        # Run the New Generation models
+        self.current_generation_models = next_gen_models
+        self.train_current_generation()
+
+    def elite_model(self, generation: int) -> Dict:
+        generation_metrics = self.metrics[self.metrics.loc[:, 'generation'] == generation]
+        generation_metrics.sort_values(by=['test_Accuracy'], ascending=False, inplace=True)
+        elite_model_name = generation_metrics.index.values[0]
+        return self.models[elite_model_name]
+
+    def top_n_slowest_models(self, generation: int, n: int = 3) -> List[Dict]:
+        generation_metrics = self.metrics[self.metrics.loc[:, 'generation'] == generation]
+        generation_metrics.sort_values(by=['training_time'], ascending=True, inplace=True)
+        elite_model_name = generation_metrics.index.values[0:n - 1]
+        return [self.models[name] for name in elite_model_name]
 
 
-# pprint.pformat(indent=4)
-ga = CNN_GA(10)

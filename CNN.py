@@ -6,7 +6,6 @@ from logging_config import log_decorator
 from tensorflow_datasets import load
 import pprint as pp
 from icecream import ic
-from functools import reduce
 
 
 # @TECHREPORT{Krizhevsky09learningmultiple,
@@ -239,7 +238,7 @@ class CNN:
         return int(np.sum([tf.keras.backend.count_params(p) for p in set(self.model.trainable_weights)]))
 
     @staticmethod
-    def add_change_log(hp_dict, change_log):
+    def add_change_log(hp_dict: Dict, change_log: str) -> Dict:
         """
         Logging then changes that have been tuned to arrived to this set of hyper_parameters
         :param hp_dict: the hyper_parameters dictionary that hold the hyper_parameters set
@@ -252,6 +251,15 @@ class CNN:
             hp_dict['change_log'] += change_log + '\n'
         return hp_dict
 
+    @staticmethod
+    def get_last_change(hp_dict: Dict) -> str:
+        """
+        Get the Last change in this model
+        :param hp_dict: The current hyper-parameter dictionary
+        :return: Last change in this model
+        """
+        return hp_dict['change_log'].splitlines()[-1]
+
     def layer_output_size(self, layer):
         if layer < 0:
             return self.input_shape
@@ -259,131 +267,148 @@ class CNN:
 
     # Model Changes
     # Those functions will produce Hyper-parameter dictionary to be created with the changes
-    @log_decorator
-    def change_epoch(self, change):
+
+    @staticmethod
+    def change_epoch(hp: Dict, change: int) -> Dict:
         """
         Increase or decrease the number of epochs
+        :param hp: The current hyper_parameters dictionary
         :param change: Amount of Epochs to increase (positive int)or decrease (negative int)
         :return: The hyper_parameters dictionary with Epoch change updated
         """
-        hp = self.hyper_parameters
         hp['epochs'] += np.int(change)
         hp['epochs'] = hp['epochs'] if hp['epochs'] > 1 else 1
-        hp = self.add_change_log(hp, f"Epochs changed by {change} where currently is {hp['epochs']}")
+        hp = CNN.add_change_log(hp, f"Epochs changed by {change} where currently is {hp['epochs']}")
         return hp
 
-    @log_decorator
-    def change_batch_size(self, change: int):
+    @staticmethod
+    def change_batch_size(hp: Dict, change: int) -> Dict:
         """
         Increase or decrease the batch size
+        :param hp: the current hyper_parameters dictionary
         :param change: The batch size increase (positive int)or decrease (negative int)
         :return: The hyper_parameters dictionary with batch size change updated
         """
-        hp = self.hyper_parameters
         hp['batch_size'] += np.int(change)
         hp['batch_size'] = hp['batch_size'] if hp['batch_size'] > 1 else 1
-        hp = self.add_change_log(hp, f"Batch size is changed by {change} where its currently {hp['batch_size']}")
+        hp = CNN.add_change_log(hp, f"Batch size is changed by {change} where its currently {hp['batch_size']}")
         return hp
 
-    @log_decorator
-    def change_learning_rate(self, change):
-        hp = self.hyper_parameters
+    @staticmethod
+    def change_learning_rate(hp: Dict, change: float) -> Dict:
+        """
+        Change the learning rate
+        :param hp: The current hyper_parameters dictionary
+        :param change: change addition or subtraction  on the current learning rate
+        :return: The hyper_parameters dictionary with the changed learning rate
+        """
         hp['learning_rate'] += change
-        self.add_change_log(hp, f"learning rate has been changed into {hp['learning_rate']}")
+        CNN.add_change_log(hp, f"learning rate has been changed into {hp['learning_rate']}")
         return hp
 
-    @log_decorator
-    def change_add_ann_layer(self, change: int) -> Dict:
-        hp = self.hyper_parameters
+    @staticmethod
+    def change_add_ann_layer(hp: Dict, change: int) -> Dict:
+        """
+        Add A Fully connected layer into the model
+        :param hp: The current hyper_parameters dictionary
+        :param change: size of the the new layer
+        :return: The hyper_parameters dictionary with the new layer added
+        """
         ann_layers = np.array(hp['fully_connected_layers'])
         layer_placement = np.random.randint(low=0, high=len(ann_layers))
         hp['fully_connected_layers'] = np.insert(arr=ann_layers, obj=layer_placement, values=change)
         hp['drop_layers'] = np.insert(arr=hp['drop_layers'], obj=layer_placement, values=0)
-        self.add_change_log(hp, f'Fully connected layer of size {change} has been added in {th(layer_placement)}' +
-                            ' layer after flatten layer')
+        CNN.add_change_log(hp, f'Fully connected layer of size {change} has been added in {th(layer_placement)}' +
+                           ' layer after flatten layer')
         return hp
 
-    @log_decorator
-    @property
-    def change_add_cnn_layer(self) -> Dict:
-        hp = self.hyper_parameters
+    @staticmethod
+    def change_add_cnn_layer(hp: Dict, input_size: int) -> Dict:
+        """
+        Add A Convolution layer into the model
+        :param input_size: Model input size
+        :param hp: The current hyper_parameters dictionary
+        :return: The hyper_parameters dictionary with the new layer added
+        """
         cnn_strides = np.array(hp['convolution_layers_strides'])
         cnn_filter = np.array(hp['convolution_layers_filter'])
         conv = np.array(hp['convolution_layer'])
         layer_placement = np.random.randint(low=0, high=len(conv))
         f = np.random.randint(low=2, high=8)
-        i_m1 = self.input_shape[0] if layer_placement == 0 else conv[layer_placement - 1]
+        i_m1 = input_size if layer_placement == 0 else conv[layer_placement - 1]
         i = conv_output(conv[i_m1], cnn_strides[layer_placement], cnn_filter[layer_placement])
         c = np.random.randint(low=i // 2 + 1, high=i * 2)
         hp['convolution_layers_strides'] = np.insert(arr=cnn_strides, obj=layer_placement, values=1)
         hp['convolution_layers_filter'] = np.insert(arr=cnn_filter, obj=layer_placement, values=f)
         hp['convolution_layer'] = np.insert(arr=conv, obj=layer_placement, values=c)
-        self.add_change_log(hp,
-                            f'CNN layer of kernel size {c} and filter ({f}x{f}) has been added in {th(layer_placement)}')
+        CNN.add_change_log(hp,
+                           f'CNN layer of kernel size {c} and filter ({f}x{f}) has been added in {th(layer_placement)}')
         return hp
 
-    @log_decorator
-    def change_ann_layer_size(self, change: int):
+    @staticmethod
+    def change_ann_layer_size(hp: Dict, change: int, output_size: int):
         """
         Increase or decrease a randomly selected fully connected layer size
+        :param output_size: The model number of classes
+        :param hp: The current hyper_parameters dictionary
         :param change: The layer size increase (positive int)or decrease (negative int)
         :return: The hyper_parameters dictionary with layer size change updated
         """
-        hp = self.hyper_parameters
         num_of_layers = len(hp['fully_connected_layers'])
         layer_to_change = np.random.randint(num_of_layers)
         layer_size = hp['fully_connected_layers'][layer_to_change]
         layer_size += np.int(change)
-        layer_size = layer_size if layer_size > self.output_size else self.output_size
+        layer_size = layer_size if layer_size > output_size else output_size
         hp['fully_connected_layers'][layer_to_change] = layer_size
-        hp = self.add_change_log(hp, f'The {th(layer_to_change)} Fully connected layer size changed by {change}')
+        hp = CNN.add_change_log(hp, f'The {th(layer_to_change)} Fully connected layer size changed by {change}')
         return hp
 
-    @log_decorator
-    def change_cnn_layer_size(self, change):
+    @staticmethod
+    def change_cnn_layer_size(hp: Dict, change: int, output_size: int = 100) -> Dict:
         """
         Increase or decrease a randomly selected convolution layer size
+        :param output_size:
+        :param hp: The current hyper_parameters dictionary
         :param change: The layer size increase (positive int)or decrease (negative int)
         :return: The hyper_parameters dictionary with layer size change updated
         """
-        hp = self.hyper_parameters
         num_of_layers = len(hp['convolution_layer'])
         layer_to_change = np.random.randint(num_of_layers)
         layer_size = hp['convolution_layer'][layer_to_change]
         layer_size += np.int(change)
-        layer_size = layer_size if layer_size > self.output_size else self.output_size
+        layer_size = layer_size if layer_size > output_size else output_size
         hp['convolution_layer'][layer_to_change] = layer_size
-        hp = self.add_change_log(hp, f'The {th(layer_to_change)} convolution layer size increased by {change}')
+        hp = CNN.add_change_log(hp, f'The {th(layer_to_change)} convolution layer size increased by {change}')
         return hp
 
-    @log_decorator
-    def change_conv_layer_strides_size(self, change):
+    @staticmethod
+    def change_conv_layer_strides_size(hp: Dict, change: int) -> Dict:
         """
         Increase or decrease a randomly selected convolution layer filter size
+        :param hp: The current hyper_parameters dictionary
         :param change: The layer size increase (positive int)or decrease (negative int)
         :return: The hyper_parameters dictionary with layer size change updated
         """
-        hp = self.hyper_parameters
         num_of_layers = len(hp['convolution_layers_strides'])
         layer_to_change = np.random.randint(num_of_layers)
+        f = hp['convolution_layers_filter'][layer_to_change]
         strides = hp['convolution_layers_strides'][layer_to_change]
         strides += np.int(change)
-        i = self.layer_output_size(layer_to_change - 1)
-        f = hp['convolution_layers_filter'][layer_to_change]
+        i = hp['convolution_layer'][layer_to_change]
         output_size_after_change = conv_output(i, strides, f)
         strides = strides if output_size_after_change > 1 else 1
         hp['convolution_layers_strides'][layer_to_change] = strides
-        hp = self.add_change_log(hp, f'The {th(layer_to_change)} convolution layer strides size increased by {change}')
+        hp = CNN.add_change_log(hp, f'The {th(layer_to_change)} convolution layer strides size increased by {change}')
         return hp
 
-    @log_decorator
-    def change_drop_layer(self, change):
+    @staticmethod
+    def change_drop_layer(hp: Dict, change: float) -> Dict:
         """
         Increase or decrease a randomly selected dropout layer drop factor
+        :param hp: The current hyper_parameters dictionary
         :param change: The layer drop factor where to increase it (positive float)or decrease it (negative float)
         :return: The hyper_parameters dictionary with dropout layer change updated
         """
-        hp = self.hyper_parameters
         num_of_layers = len(hp['drop_layers'])
         layer_to_change = np.random.randint(num_of_layers)
         layer_size = hp['drop_layers'][layer_to_change]
@@ -391,79 +416,96 @@ class CNN:
         layer_size = layer_size if layer_size > 0 else 0
         layer_size = layer_size if layer_size < 0.9 else 0.9
         hp['drop_layers'][layer_to_change] = layer_size
-        hp = self.add_change_log(hp, f'The {th(layer_to_change)} Dropout layer drop factor changed by {change}')
+        hp = CNN.add_change_log(hp, f'The {th(layer_to_change)} Dropout layer drop factor changed by {change}')
         return hp
 
-    @log_decorator
-    @property
-    def change_learning_rate_decay_type(self) -> Dict:
+    @staticmethod
+    def change_learning_rate_decay_type(hp: Dict) -> Dict:
+        """
+        Change the learning rate per epoch function
+        :param hp: The current hyper_parameters dictionary
+        :return: The hyper_parameters dictionary with the learning rate per epoch function change updated
+        """
         decay_type = ['Constant',
                       'PiecewiseConstantDecay',
                       'exponential_decay',
                       'InverseTimeDecay',
                       'PolynomialDecay']
-        hp = self.hyper_parameters
         # Selecting new decay type
         current_decay_type = hp['learning_rate_decay_type']
         decay_type.remove(current_decay_type)
         new_decay_type = np.random.choice(decay_type)
         hp['learning_rate_decay_type'] = new_decay_type
         if new_decay_type == 'Constant':
-            decay_prarm = f'with learning rate {hp["learning_rate"]}'
+            decay_parameter = f'with learning rate {hp["learning_rate"]}'
         else:
-            decay_rate, step = hp['learning_rate_function_params']
             decay_rate = np.round(0.01 * np.random.random(), decimals=5)
             step = np.random.randint(low=10, high=1e4)
             hp['learning_rate_function_params'] = [decay_rate, step]
-            decay_prarm = f'with learning rate {hp["learning_rate"]}, Global step {step} and decay rate {decay_rate}'
-        hp = self.add_change_log(hp, f'learning rate decay type changed to {new_decay_type} {decay_prarm}')
+            decay_parameter = f'with learning rate {hp["learning_rate"]},' + \
+                              ' Global step {step} and decay rate {decay_rate}'
+        hp = CNN.add_change_log(hp, f'learning rate decay type changed to {new_decay_type} {decay_parameter}')
         return hp
 
-    @log_decorator
-    @property
-    def change_for_over_fit(self) -> Dict:
+    @staticmethod
+    def change_name_to(hp: Dict, new_name: str) -> Dict:
+        old_name = hp.get('name', 'new')
+        hp['prev_model'], old_name = old_name, new_name
+        return hp
+
+    @staticmethod
+    def change_for_over_fit(hp: Dict, output_size: int) -> Dict:
+        """
+        Random select a change that will regulate over fitted model
+        :param output_size:
+        :param hp: The current hyper_parameters dictionary
+        :return: The hyper_parameters dictionary with the randomly selected change updated
+        """
         prob = np.array([1, 1, 1])
         prob = prob / np.sum(prob)
         change_selection = AnyDice(prob).roll
         if change_selection == 0:
-            return self.change_drop_layer(np.random.random() * 0.1)
+            return CNN.change_drop_layer(hp, np.random.random() * 0.1)
         elif change_selection == 1:
-            return self.change_ann_layer_size(-1)
+            return CNN.change_ann_layer_size(hp, -1, output_size)
         elif change_selection == 2:
-            return self.change_learning_rate_decay_type
+            return CNN.change_learning_rate_decay_type(hp)
 
-    @log_decorator
-    @property
-    def change_for_slow_training_time(self) -> Dict:
+    @staticmethod
+    def change_for_slow_training_time(hp: Dict) -> Dict:
+        """
+        Random select a change that will decrease model training time
+        :param hp: The current hyper_parameters dictionary
+        :return: The hyper_parameters dictionary with the randomly selected change updated
+        """
         prob = np.array([3, 2, 1])
         prob = prob / np.sum(prob)
         change_selection = AnyDice(prob).roll
         if change_selection == 0:
-            return self.change_batch_size(np.random.randint(low=-16, high=16))
+            return CNN.change_batch_size(hp, np.random.randint(low=-16, high=16))
         elif change_selection == 1:
-            return self.change_epoch(np.random.randint(low=-16, high=-4))
+            return CNN.change_epoch(hp, np.random.randint(low=-16, high=-4))
         else:
-            return self.change_learning_rate_decay_type
+            return CNN.change_learning_rate_decay_type(hp)
 
-    @log_decorator
-    @property
-    def change_for_under_fitting(self) -> Dict:
+    @staticmethod
+    def change_for_under_fitting(hp: Dict, input_size: int, output_size: int) -> Dict:
         prob = np.array([4, 3, 4, 3, 5, 5, 2, 1])
         prob = prob / np.sum(prob)
         change_selection = AnyDice(prob).roll
         if change_selection == 0:
-            return self.change_ann_layer_size(np.random.randint(low=1, high=16))
+            return CNN.change_ann_layer_size(hp, np.random.randint(low=1, high=16), output_size)
         elif change_selection == 1:
-            return self.change_cnn_layer_size(np.random.randint(low=1, high=16))
+            return CNN.change_cnn_layer_size(hp, np.random.randint(low=1, high=16), output_size)
         elif change_selection == 2:
-            return self.change_add_ann_layer(np.random.randint(low=1, high=16))
+            return CNN.change_add_ann_layer(hp, np.random.randint(low=1, high=16))
         elif change_selection == 3:
-            return self.change_add_cnn_layer
+            return CNN.change_add_cnn_layer(hp, input_size)
         elif change_selection == 4:
-            return self.change_epoch(np.random.randint(low=1, high=16))
+            return CNN.change_epoch(hp, np.random.randint(low=1, high=16))
         elif change_selection == 5:
-            return self.change_learning_rate(np.round(np.random.random() * 1e-3, decimals=6))
+            return CNN.change_learning_rate(hp, np.round(np.random.random() * 1e-3, decimals=6))
         elif change_selection == 6:
-            return self.change_learning_rate_decay_type
+            return CNN.change_learning_rate_decay_type(hp)
         else:
-            return self.change_conv_layer_strides_size(np.random.randint(low=-1, high=1))
+            return CNN.change_conv_layer_strides_size(hp, np.random.randint(low=-1, high=1))

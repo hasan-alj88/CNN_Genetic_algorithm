@@ -5,7 +5,7 @@ import time
 from logging.handlers import RotatingFileHandler
 import os
 
-default_timer = time.clock if (sys.platform == "win32") else time.time
+default_timer = time.process_time if (sys.platform == "win32") else time.time
 log_file_dir = os.path.join(os.getcwd(), 'logs')
 
 def create_logger():

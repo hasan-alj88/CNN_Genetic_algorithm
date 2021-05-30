@@ -1,4 +1,6 @@
 import datetime
+import os
+
 import tensorflow as tf
 import numpy as np
 from typing import Tuple, Dict, List
@@ -6,6 +8,8 @@ from logging_config import log_decorator
 from tensorflow_datasets import load
 import pprint as pp
 from icecream import ic
+import xmltodict
+import datetime
 
 
 # @TECHREPORT{Krizhevsky09learningmultiple,
@@ -43,18 +47,21 @@ def conv_output(i, s, f):
     return ((i - f + 2 * zero_padding(i, s, f)) // s) + 1
 
 
-def generate_random_convolution_parameters(input_size: int = 32, number_of_layers: int = 3) -> Tuple[int, int, int]:
-    i = np.random.randint(low=input_size // 2, high=2 * input_size)
+def generate_random_convolution_parameters(number_of_layers: int = 3) -> Tuple[int, int, int]:
+    i = np.random.randint(low=8, high=128)
     for _ in range(number_of_layers):
         # strides
-        s = np.random.randint(low=1, high=np.ceil(np.log2(i)))
+        s_max = np.ceil(np.log2(i))
+        s = 1 if s_max <= 1 else np.random.randint(low=1, high=s_max)
         # filters
-        f = np.random.randint(low=2, high=6)
+        f = np.random.randint(low=2, high=4)
         yield i, f, s
         i = conv_output(i, s, f)
 
 
-def create_random_hyper_parameter(input_size: int = 32, output_size: int = 100) -> Dict:
+def create_random_hyper_parameter(output_size: int,
+                                  number_of_cnn_layers: int = 3,
+                                  number_of_ann_layers: int = 3) -> Dict:
     # initial number of layers is 2 (each of CNN and ANN layers)
     learning_rate_decay_function = [
         'Constant',
@@ -64,19 +71,22 @@ def create_random_hyper_parameter(input_size: int = 32, output_size: int = 100) 
         'PolynomialDecay',
     ]
 
-    conv_gen = generate_random_convolution_parameters(input_size, 2)
+    conv_gen = generate_random_convolution_parameters(number_of_cnn_layers)
     conv_units, conv_filters, conv_strides = zip(*[_ for _ in conv_gen])
+    epochs = np.random.randint(low=32, high=256)
 
     hp = {
-        'convolution_layer': conv_units,
-        'convolution_layers_filter': conv_filters,
-        'convolution_layers_strides': conv_strides,
-        'fully_connected_layers': np.random.randint(low=output_size, high=256, size=3),
-        'drop_layers': np.zeros(2),  # no dropout layers initially
+        'convolution_layer': list(conv_units),
+        'convolution_layers_filter': list(conv_filters),
+        'convolution_layers_strides': list(conv_strides),
+        'fully_connected_layers': np.random.randint(low=output_size, high=256, size=number_of_ann_layers),
+        'drop_layers': np.zeros(number_of_ann_layers),  # no dropout layers initially
         'learning_rate': np.round(0.01 * np.random.random(), decimals=6),
-        'learning_rate_function_params': [np.round(np.random.random(), decimals=6), 1000],
+        'learning_rate_function_params': [
+            np.round(np.random.random(), decimals=6),
+            np.random.randint(low=10, high=epochs)],
         'learning_rate_decay_type': np.random.choice(learning_rate_decay_function),
-        'epochs': np.random.randint(low=32, high=128),
+        'epochs': epochs,
         'batch_size': np.random.randint(low=8, high=100),
     }
     return hp
@@ -144,7 +154,7 @@ class CNN:
                                                       padding='same',
                                                       name=self.hyper_parameters['name'] + f'_conv{layer}'))
         # Fully connected layers
-        self.model.add(tf.keras.layers.Flatten())
+        self.model.add(tf.keras.layers.Flatten(name=self.hyper_parameters['name'] + '_Flatten'))
         for layer, (ann_layer, dp_layer) in enumerate(zip(
                 self.hyper_parameters['fully_connected_layers'],
                 self.hyper_parameters['drop_layers'])):
@@ -192,6 +202,10 @@ class CNN:
         }
 
         lr_schedule = learning_rate_scheduler_function[self.hyper_parameters['learning_rate_decay_type']]
+        tb_dir = os.path.join(
+            'logs',
+            f"{self.hyper_parameters['name']}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}")
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=tb_dir, histogram_freq=1)
         self.model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule),
             loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -200,12 +214,15 @@ class CNN:
         self.History = self.model.fit(self.ds_train,
                                       epochs=self.hyper_parameters['epochs'],
                                       validation_data=self.ds_test,
+                                      callbacks=[tensorboard_callback],
                                       verbose=verbose)
         self.Training_time = (datetime.datetime.now() - start_time).total_seconds() * 1000  # in ms
 
     @classmethod
-    def create_random_cnn_model(cls, input_size: int):
-        return cls(create_random_hyper_parameter(input_size))
+    def load_from_model_hp_file(cls, filepath: str):
+        with open(filepath, 'r') as file:
+            xml_str = file.read()
+            return cls(xmltodict.parse(xml_str))
 
     def __repr__(self):
         out_str = '-----------------------\nHyper-parameters:-\n'

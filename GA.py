@@ -1,3 +1,4 @@
+import os.path
 import pprint
 
 from CNN import CNN, create_random_hyper_parameter, generate_random_convolution_parameters, load_data
@@ -7,6 +8,7 @@ import pandas as pd
 import pprint as pp
 from typing import Dict, List
 from logging_config import log_decorator, logger
+from dict2xml import dict2xml
 
 
 class CNN_GA():
@@ -26,7 +28,7 @@ class CNN_GA():
         self.current_generation_models = []
 
         for _ in range(self.number_of_models_per_generation):
-            modelg0hp = create_random_hyper_parameter()
+            modelg0hp = create_random_hyper_parameter(self.input_shape[0], self.output_size)
             modelg0hp = CNN.change_name_to(modelg0hp, f'model_gen0_{_}')
             modelg0hp['prev_model'] = 'new'
             self.current_generation_models.append(modelg0hp)
@@ -64,8 +66,20 @@ class CNN_GA():
             self.metrics.loc[model_name, 'training_time'] = np.max([cnn.Training_time for cnn in model_runs])
             self.metrics.loc[model_name, 'prev_model'] = model['prev_model']
             self.metrics.loc[model_name, 'generation'] = self.current_generation
+            self.save_model(model)
             logger.info(f'Performance results for {model_name}:-\n{self.metrics.loc[model_name, :]}')
         logger.info(f'Generation {self.current_generation} Training completed.\n------------------\n')
+
+    def save_model(self, model_hp: Dict):
+        model_name = model_hp['name']
+        self.models[model_name] = model_hp
+        file_path = os.path.join('models', f'{model_name}.xml')
+        with open(file_path, 'w') as file:
+            file.writelines(dict2xml(
+                model_hp,
+                wrap='model_hyper_parameters',
+                indent="\t"))
+            logger.debug(f'{model_name} was saved in {file_path}')
 
     def next_generation_models(self):
         self.current_generation += 1
@@ -103,6 +117,7 @@ class CNN_GA():
         generation_metrics = self.metrics[self.metrics.loc[:, 'generation'] == generation]
         generation_metrics.sort_values(by=['test_Accuracy'], ascending=False, inplace=True)
         elite_model_name = generation_metrics.index.values[0]
+        logger.info(f'Model {elite_model_name} is selected as the Elite model.')
         return self.models[elite_model_name]
 
     def top_n_slowest_models(self, generation: int, n: int = 3) -> List[Dict]:
@@ -112,7 +127,10 @@ class CNN_GA():
         return [self.models[name] for name in elite_model_name]
 
 
-ga = CNN_GA(population_size=10,
-            model_reruns=3,
-            number_of_models_tobe_changed_based_on_training_time=3)
+ga = CNN_GA(population_size=3,
+            model_reruns=2,
+            number_of_models_tobe_changed_based_on_training_time=1)
+for _ in range(20):
+    ga.train_current_generation()
+    ga.metrics.to_csv(os.path.join(os.getcwd(), 'model_metrics.csv'))
 print(ga.metrics)

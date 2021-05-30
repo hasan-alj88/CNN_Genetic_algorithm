@@ -32,9 +32,7 @@ def load_data(batch_size):
     test_ds = test_ds.map(normalize_img, num_parallel_calls=tf.data.experimental.AUTOTUNE)
     train_ds = train_ds.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
     test_ds = test_ds.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
-    ic(train_ds)
-    ic(test_ds)
-    input_size = (32, 32, 3)  # including batch dimension
+    input_size = (32, 32, 3)
     output_size = 100
     return train_ds, test_ds, input_size, output_size
 
@@ -51,24 +49,23 @@ def generate_random_convolution_parameters(number_of_layers: int = 3) -> Tuple[i
     i = np.random.randint(low=8, high=128)
     for _ in range(number_of_layers):
         # strides
-        s_max = np.ceil(np.log2(i))
-        s = 1 if s_max <= 1 else np.random.randint(low=1, high=s_max)
+        s = np.random.randint(low=1, high=2)
         # filters
         f = np.random.randint(low=2, high=4)
         yield i, f, s
-        i = conv_output(i, s, f)
+        i = np.random.randint(low=8, high=128)
 
 
 def create_random_hyper_parameter(output_size: int,
                                   number_of_cnn_layers: int = 3,
                                   number_of_ann_layers: int = 3) -> Dict:
-    # initial number of layers is 2 (each of CNN and ANN layers)
     learning_rate_decay_function = [
         'Constant',
         'PiecewiseConstantDecay',
         'exponential_decay',
         'InverseTimeDecay',
         'PolynomialDecay',
+        'ReduceLROnPlateau',
     ]
 
     conv_gen = generate_random_convolution_parameters(number_of_cnn_layers)
@@ -84,7 +81,7 @@ def create_random_hyper_parameter(output_size: int,
         'learning_rate': np.round(0.01 * np.random.random(), decimals=6),
         'learning_rate_function_params': [
             np.round(np.random.random(), decimals=6),
-            np.random.randint(low=10, high=epochs)],
+            np.random.randint(low=2, high=epochs)],
         'learning_rate_decay_type': np.random.choice(learning_rate_decay_function),
         'epochs': epochs,
         'batch_size': np.random.randint(low=8, high=100),
@@ -169,8 +166,6 @@ class CNN:
                                              name=self.hyper_parameters['name'] + f'_SoftMax'))
         self.model.summary()
         # Compile and Training Model
-        for layer in self.model.layers:
-            print(f'{layer.name}|{layer.input_shape} -> {layer.output_shape}')
         # select learning rate schedule
         learning_rate = self.hyper_parameters['learning_rate']
         decay_rate, global_step = self.hyper_parameters['learning_rate_function_params']
@@ -199,6 +194,11 @@ class CNN:
                 decay_steps=global_step,
                 power=decay_rate
             ),
+            'ReduceLROnPlateau': tf.keras.callbacks.ReduceLROnPlateau(
+                factor=decay_rate,
+                patience=global_step,
+                verbose=verbose
+            )
         }
 
         lr_schedule = learning_rate_scheduler_function[self.hyper_parameters['learning_rate_decay_type']]

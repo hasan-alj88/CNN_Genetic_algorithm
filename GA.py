@@ -28,7 +28,9 @@ class CNN_GA():
         self.current_generation_models = []
 
         for _ in range(self.number_of_models_per_generation):
-            modelg0hp = create_random_hyper_parameter(self.input_shape[0], self.output_size)
+            modelg0hp = create_random_hyper_parameter(output_size=self.output_size,
+                                                      number_of_cnn_layers=4,
+                                                      number_of_ann_layers=4)
             modelg0hp = CNN.change_name_to(modelg0hp, f'model_gen0_{_}')
             modelg0hp['prev_model'] = 'new'
             self.current_generation_models.append(modelg0hp)
@@ -66,6 +68,8 @@ class CNN_GA():
             self.metrics.loc[model_name, 'training_time'] = np.max([cnn.Training_time for cnn in model_runs])
             self.metrics.loc[model_name, 'prev_model'] = model['prev_model']
             self.metrics.loc[model_name, 'generation'] = self.current_generation
+            model['layers_input_output_shape'] = {layer.name: f'{layer.input_shape} -> {layer.output_shape}'
+                                                  for layer in model_runs[0].model.layers}
             self.save_model(model)
             logger.info(f'Performance results for {model_name}:-\n{self.metrics.loc[model_name, :]}')
         logger.info(f'Generation {self.current_generation} Training completed.\n------------------\n')

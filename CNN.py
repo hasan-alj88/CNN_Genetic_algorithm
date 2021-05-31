@@ -201,11 +201,22 @@ class CNN:
             )
         }
 
-        lr_schedule = learning_rate_scheduler_function[self.hyper_parameters['learning_rate_decay_type']]
         tb_dir = os.path.join(
             'logs',
             f"{self.hyper_parameters['name']}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}")
         tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=tb_dir, histogram_freq=1)
+
+        if self.hyper_parameters['learning_rate_decay_type'] == 'ReduceLROnPlateau':
+            lr_schedule = learning_rate
+            callbacks = [
+                tensorboard_callback,
+                learning_rate_scheduler_function['ReduceLROnPlateau']
+            ]
+        else:
+            lr_schedule = learning_rate_scheduler_function[self.hyper_parameters['learning_rate_decay_type']]
+            callbacks = [tensorboard_callback]
+
+
         self.model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule),
             loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -214,7 +225,7 @@ class CNN:
         self.History = self.model.fit(self.ds_train,
                                       epochs=self.hyper_parameters['epochs'],
                                       validation_data=self.ds_test,
-                                      callbacks=[tensorboard_callback],
+                                      callbacks=callbacks,
                                       verbose=verbose)
         self.Training_time = (datetime.datetime.now() - start_time).total_seconds() * 1000  # in ms
 

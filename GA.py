@@ -68,8 +68,8 @@ class CNN_GA():
             self.metrics.loc[model_name, 'training_time'] = np.max([cnn.Training_time for cnn in model_runs])
             self.metrics.loc[model_name, 'prev_model'] = model['prev_model']
             self.metrics.loc[model_name, 'generation'] = self.current_generation
-            model['layers_input_output_shape'] = {layer.name: f'{layer.input_shape} -> {layer.output_shape}'
-                                                  for layer in model_runs[0].model.layers}
+            model['layers_input_output_shape'] = [ f'layer.name: {layer.input_shape} --- {layer.output_shape}'
+                                                  for layer in model_runs[0].model.layers]
             self.save_model(model)
             logger.info(f'Performance results for {model_name}:-\n{self.metrics.loc[model_name, :]}')
         logger.info(f'Generation {self.current_generation} Training completed.\n------------------\n')

@@ -46,7 +46,7 @@ def conv_output(i, s, f):
 
 
 def generate_random_convolution_parameters(number_of_layers: int = 3) -> Tuple[int, int, int]:
-    i = np.random.randint(low=8, high=128)
+    i = np.random.randint(low=8, high=32)
     for _ in range(number_of_layers):
         # strides
         s = np.random.randint(low=1, high=2)
@@ -70,7 +70,7 @@ def create_random_hyper_parameter(output_size: int,
 
     conv_gen = generate_random_convolution_parameters(number_of_cnn_layers)
     conv_units, conv_filters, conv_strides = zip(*[_ for _ in conv_gen])
-    epochs = np.random.randint(low=32, high=256)
+    epochs = np.random.randint(low=16, high=32)
 
     hp = {
         'convolution_layer': list(conv_units),
@@ -94,15 +94,12 @@ def th(num: int) -> str:
     return f'{num}{the_th.get(num, "th")}'
 
 
-@log_decorator
 class AnyDice:
     def __init__(self, probabilities: List[float]):
-        if not np.isclose(np.sum([0, probabilities]), 1.0):
+        if not np.isclose(np.sum(probabilities), 1.0):
             raise ValueError('sum of probabilities must equal 1.0')
-        probabilities.insert(0, 0)
         self.boundaries = np.add.accumulate(probabilities)
 
-    @log_decorator
     @property
     def roll(self) -> int:
         the_roll = np.random.random()
@@ -358,12 +355,12 @@ class CNN:
         :param hp: The current hyper_parameters dictionary
         :return: The hyper_parameters dictionary with the new layer added
         """
-        cnn_strides = np.array(hp['convolution_layers_strides'])
-        cnn_filter = np.array(hp['convolution_layers_filter'])
+        cnn_strides = hp['convolution_layers_strides']
+        cnn_filter = hp['convolution_layers_filter']
         conv = np.array(hp['convolution_layer'])
         layer_placement = np.random.randint(low=0, high=len(conv))
         f = np.random.randint(low=2, high=8)
-        i_m1 = input_size if layer_placement == 0 else conv[layer_placement - 1]
+        i_m1 = 0 if layer_placement == 0 else conv[layer_placement - 1]
         i = conv_output(conv[i_m1], cnn_strides[layer_placement], cnn_filter[layer_placement])
         c = np.random.randint(low=i // 2 + 1, high=i * 2)
         hp['convolution_layers_strides'] = np.insert(arr=cnn_strides, obj=layer_placement, values=1)
@@ -537,3 +534,4 @@ class CNN:
             return CNN.change_learning_rate_decay_type(hp)
         else:
             return CNN.change_conv_layer_strides_size(hp, np.random.randint(low=-1, high=1))
+

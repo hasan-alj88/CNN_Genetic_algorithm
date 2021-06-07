@@ -13,9 +13,9 @@ from dict2xml import dict2xml
 
 class CNN_GA():
     def __init__(self,
-                 population_size: int = 10,
-                 model_reruns: int = 3,
-                 number_of_models_tobe_changed_based_on_training_time: int = 3):
+                 population_size: int = 3,
+                 model_reruns: int = 2,
+                 number_of_models_tobe_changed_based_on_training_time: int = 1):
         _, __, self.input_shape, self.output_size = load_data(1)
         self.number_of_models_tobe_changed_based_on_training_time = number_of_models_tobe_changed_based_on_training_time
         self.number_of_models_per_generation = population_size
@@ -66,6 +66,7 @@ class CNN_GA():
             self.metrics.loc[model_name, 'test_Accuracy'] = np.min([cnn.accuracy[0] for cnn in model_runs])
             self.metrics.loc[model_name, 'train_Accuracy'] = np.min([cnn.accuracy[1] for cnn in model_runs])
             self.metrics.loc[model_name, 'training_time'] = np.max([cnn.Training_time for cnn in model_runs])
+            self.metrics.loc[model_name, 'over-fit'] = np.any([cnn.is_over_fitted for cnn in model_runs])
             self.metrics.loc[model_name, 'prev_model'] = model['prev_model']
             self.metrics.loc[model_name, 'generation'] = self.current_generation
             model['layers_input_output_shape'] = [ f'layer.name: {layer.input_shape} --- {layer.output_shape}'
@@ -92,7 +93,6 @@ class CNN_GA():
                     '============================================\n')
         # Elite Selection
         elite = self.elite_model(self.current_generation - 1)
-        elite = CNN.change_name_to(elite, f'Best_model_of_gen{self.current_generation - 1}')
         next_gen_models = [elite]
 
         # slowest Training Time changes
@@ -100,16 +100,20 @@ class CNN_GA():
         slow_models = self.top_n_slowest_models(self.current_generation - 1, n)
         for _, slow_model in enumerate(slow_models):
             new_model = CNN.change_for_slow_training_time(slow_model)
-            new_model = CNN.change_name_to(new_model, f'model_gen{self.current_generation}_{_}')
+            new_model = CNN.change_name_to(self.models[new_model], f'model_gen{self.current_generation}_{_}')
             next_gen_models.append(new_model)
 
-        # Fix Under-fitting for the rest
+        # Fix Under-fitting and over-fitting for the rest
         prev_gen_model_names = set([model['name'] for model in self.current_generation_models])
         elite_set = set(elite['name'])
         slow_models_names = set([model['name'] for model in slow_models])
         under_fitted_models = list(prev_gen_model_names - elite_set - slow_models_names)
         for _, prev_gen_model in enumerate(under_fitted_models):
-            new_model = CNN.change_for_under_fitting(prev_gen_model, self.input_shape, self.output_size)
+            model_hp = self.models[prev_gen_model]
+            if self.metrics.loc[prev_gen_model, 'over-fit'] ==1:
+                new_model = CNN.change_for_over_fit(model_hp, self.input_shape)
+            else:
+                new_model = CNN.change_for_under_fitting(model_hp, self.input_shape, self.output_size)
             new_model = CNN.change_name_to(new_model, f'model_gen{self.current_generation}_{_}')
             next_gen_models.append(new_model)
 
@@ -134,7 +138,11 @@ class CNN_GA():
 ga = CNN_GA(population_size=3,
             model_reruns=2,
             number_of_models_tobe_changed_based_on_training_time=1)
-for _ in range(20):
+
+for _ in range(10):
     ga.train_current_generation()
     ga.metrics.to_csv(os.path.join(os.getcwd(), 'model_metrics.csv'))
+    ga.next_generation_models()
+
+
 print(ga.metrics)

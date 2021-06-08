@@ -29,8 +29,8 @@ class CNN_GA():
 
         for _ in range(self.number_of_models_per_generation):
             modelg0hp = create_random_hyper_parameter(output_size=self.output_size,
-                                                      number_of_cnn_layers=4,
-                                                      number_of_ann_layers=4)
+                                                      number_of_cnn_layers=1,
+                                                      number_of_ann_layers=1)
             modelg0hp = CNN.change_name_to(modelg0hp, f'model_gen0_{_}')
             modelg0hp['prev_model'] = 'new'
             self.current_generation_models.append(modelg0hp)
@@ -139,7 +139,7 @@ ga = CNN_GA(population_size=3,
             model_reruns=2,
             number_of_models_tobe_changed_based_on_training_time=1)
 
-for _ in range(10):
+for _ in range(30):
     ga.train_current_generation()
     ga.metrics.to_csv(os.path.join(os.getcwd(), 'model_metrics.csv'))
     ga.next_generation_models()

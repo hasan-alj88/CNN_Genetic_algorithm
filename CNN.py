@@ -26,14 +26,14 @@ def normalize_img(image, label):
 
 
 def load_data(batch_size):
-    train_ds = load('cifar100', split='train', shuffle_files=True, as_supervised=True)
-    test_ds = load('cifar100', split='test', shuffle_files=True, as_supervised=True)
+    train_ds = load('fashion_mnist', split='train', shuffle_files=True, as_supervised=True)
+    test_ds = load('fashion_mnist', split='test', shuffle_files=True, as_supervised=True)
     train_ds = train_ds.map(normalize_img, num_parallel_calls=tf.data.experimental.AUTOTUNE)
     test_ds = test_ds.map(normalize_img, num_parallel_calls=tf.data.experimental.AUTOTUNE)
     train_ds = train_ds.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
     test_ds = test_ds.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
-    input_size = (32, 32, 3)
-    output_size = 100
+    input_size = (28, 28, 1)
+    output_size = 10
     return train_ds, test_ds, input_size, output_size
 
 
@@ -70,7 +70,7 @@ def create_random_hyper_parameter(output_size: int,
 
     conv_gen = generate_random_convolution_parameters(number_of_cnn_layers)
     conv_units, conv_filters, conv_strides = zip(*[_ for _ in conv_gen])
-    epochs = np.random.randint(low=16, high=32)
+    epochs = 10
 
     hp = {
         'convolution_layer': list(conv_units),
@@ -135,7 +135,7 @@ class CNN:
             if layer == 0:
                 self.model.add(tf.keras.layers.Conv2D(cov,
                                                       (filt, filt),
-                                                      strides=stride,
+                                                      strides=(stride, stride),
                                                       activation='relu',
                                                       padding='same',
                                                       input_shape=self.input_shape,
@@ -143,7 +143,7 @@ class CNN:
             else:
                 self.model.add(tf.keras.layers.Conv2D(cov,
                                                       (filt, filt),
-                                                      strides=stride,
+                                                      strides=(stride, stride),
                                                       activation='relu',
                                                       padding='same',
                                                       name=self.hyper_parameters['name'] + f'_conv{layer}'))
@@ -360,7 +360,7 @@ class CNN:
         conv = np.array(hp['convolution_layer'])
         layer_placement = np.random.randint(low=0, high=len(conv))
         f = np.random.randint(low=2, high=8)
-        i_m1 = 0 if layer_placement == 0 else conv[layer_placement - 1]
+        i_m1 = np.random.randint(low=0, high=len(conv))
         i = conv_output(conv[i_m1], cnn_strides[layer_placement], cnn_filter[layer_placement])
         c = np.random.randint(low=i // 2 + 1, high=i * 2)
         hp['convolution_layers_strides'] = np.insert(arr=cnn_strides, obj=layer_placement, values=1)
@@ -416,12 +416,9 @@ class CNN:
         """
         num_of_layers = len(hp['convolution_layers_strides'])
         layer_to_change = np.random.randint(num_of_layers)
-        f = hp['convolution_layers_filter'][layer_to_change]
         strides = hp['convolution_layers_strides'][layer_to_change]
         strides += np.int(change)
-        i = hp['convolution_layer'][layer_to_change]
-        output_size_after_change = conv_output(i, strides, f)
-        strides = strides if output_size_after_change > 1 else 1
+        strides = strides if strides > 1 else 1
         hp['convolution_layers_strides'][layer_to_change] = strides
         hp = CNN.add_change_log(hp, f'The {th(layer_to_change)} convolution layer strides size increased by {change}')
         return hp
@@ -503,19 +500,19 @@ class CNN:
         :param hp: The current hyper_parameters dictionary
         :return: The hyper_parameters dictionary with the randomly selected change updated
         """
-        prob = np.array([3, 2, 1])
+        prob = np.array([2, 1])
         prob = prob / np.sum(prob)
         change_selection = AnyDice(prob).roll
         if change_selection == 0:
             return CNN.change_batch_size(hp, np.random.randint(low=-16, high=16))
-        elif change_selection == 1:
-            return CNN.change_epoch(hp, np.random.randint(low=-16, high=-4))
+        # elif change_selection == 1:
+        #     return CNN.change_epoch(hp, np.random.randint(low=-16, high=-4))
         else:
             return CNN.change_learning_rate_decay_type(hp)
 
     @staticmethod
     def change_for_under_fitting(hp: Dict, input_size: int, output_size: int) -> Dict:
-        prob = np.array([4, 3, 4, 3, 5, 5, 2, 1])
+        prob = np.array([4, 3, 4, 3, 5, 5, 1])
         prob = prob / np.sum(prob)
         change_selection = AnyDice(prob).roll
         if change_selection == 0:
@@ -526,11 +523,11 @@ class CNN:
             return CNN.change_add_ann_layer(hp, np.random.randint(low=1, high=16))
         elif change_selection == 3:
             return CNN.change_add_cnn_layer(hp, input_size)
+        # elif change_selection == 4:
+        #     return CNN.change_epoch(hp, np.random.randint(low=1, high=16))
         elif change_selection == 4:
-            return CNN.change_epoch(hp, np.random.randint(low=1, high=16))
-        elif change_selection == 5:
             return CNN.change_learning_rate(hp, np.round(np.random.random() * 1e-3, decimals=6))
-        elif change_selection == 6:
+        elif change_selection == 5:
             return CNN.change_learning_rate_decay_type(hp)
         else:
             return CNN.change_conv_layer_strides_size(hp, np.random.randint(low=-1, high=1))
